@@ -1,0 +1,12 @@
+1|miaomiamao|Unfinished
+2|learn scala|Unfinished
+3|ppre|Finished
+4|urewrj49 34u0jfm|Unfinished
+5|hello world|Unfinished
+6|learn haskell|Unfinished
+7|ご飯を作る|Finished
+8|go to school|Unfinished
+9|write haskell todo list|Unfinished
+10|learn angular|Unfinished
+11|write java|Unfinished
+12|code typescript|Unfinished
