@@ -13,9 +13,6 @@ instance Show Item where
 
 filepath = "todo.txt"
 
-getFileHandle = do
-  openFile filepath ReadWriteMode
-
 newId contents
   | null contents = "1"
   | otherwise = show $ (read $ head $ split '|' $ last $ lines contents) + 1
@@ -36,23 +33,26 @@ split :: Eq a => a -> [a] -> [[a]]
 split d [] = []
 split d s = x : split d (drop 1 y) where (x, y) = span (/= d) s
 
-add args = do
-  let text = intercalate " " args
+modify :: (String -> String) -> IO ()
+modify f = do
   handle <- openFile filepath ReadWriteMode
   (tempName, tempHandle) <- openTempFile "." "temp"
   contents <- hGetContents handle
-  let newItemId = newId contents
-  hPutStrLn tempHandle $ getNewContents contents $ toDBItem $ Item {itemId = newItemId, text = text, status = Unfinished}
+  let newContents = f contents
+  hPutStr tempHandle newContents
   hClose handle
   hClose tempHandle
   removeFile filepath
   renameFile tempName filepath
 
-toItemsStr :: String -> String
-toItemsStr contents =
-  let allLines = lines contents
-      objs = map (show . toObjItem) allLines
-   in unlines objs
+add args = do
+  let text = intercalate " " args
+      addItem text newItemId = Item newItemId text Unfinished
+      combineFun h f g p = h $ f p $ g p
+      f = combineFun (++ "\n") getNewContents (toDBItem . addItem text . newId)
+  modify f
+
+toItemsStr = unlines . map (show . toObjItem) . lines
 
 view _ = do
   isExist <- doesFileExist filepath
@@ -60,7 +60,8 @@ view _ = do
     then do
       contents <- readFile filepath
       if null contents
-        then do putStrLn "Here is Nothing"
+        then do
+          putStrLn "Here is Nothing"
         else do
           putStrLn $ toItemsStr contents
     else do
@@ -73,46 +74,27 @@ parseItem contentLine =
    in Item {itemId = itemId, text = text, status = Unfinished}
 
 remove [removeId] = do
-  handle <- openFile filepath ReadWriteMode
-  (tempName, tempHandle) <- openTempFile "." "temp"
-  contents <- hGetContents handle
-  let allLines = lines contents
-      newLines = filter (\line -> removeId /= (itemId $ toObjItem line)) allLines
-  hPutStr tempHandle $ unlines newLines
-  hClose handle
-  hClose tempHandle
-  removeFile filepath
-  renameFile tempName filepath
+  modify $ unlines . filter ((removeId /=) . itemId . toObjItem) . lines
+
+updateItem updateId updateText item
+  | itemId item == updateId = Item updateId updateText (status item)
+  | otherwise = item
 
 update args = do
   let (updateId : textArray) = args
       text = intercalate " " textArray
-  handle <- openFile filepath ReadWriteMode
-  (tempName, tempHandle) <- openTempFile "." "temp"
-  contents <- hGetContents handle
-  let allLines = lines contents
-      objs = map toObjItem allLines
-      newObjs = map (\itemObj -> if updateId == (itemId itemObj) then Item {itemId = updateId, text = text, status = (status itemObj)} else itemObj) objs
-      newLines = map toDBItem newObjs
-  hPutStr tempHandle $ unlines newLines
-  hClose handle
-  hClose tempHandle
-  removeFile filepath
-  renameFile tempName filepath
+      handleItem = toDBItem . updateItem updateId text . toObjItem
+      f = unlines . map handleItem . lines
+  modify f
+
+finishItem finishedId item
+  | finishedId == itemId item = Item finishedId (text item) Finished
+  | otherwise = item
 
 finish [finishedId] = do
-  handle <- openFile filepath ReadWriteMode
-  (tempName, tempHandle) <- openTempFile "." "temp"
-  contents <- hGetContents handle
-  let allLines = lines contents
-      objs = map toObjItem allLines
-      newObjs = map (\itemObj -> if finishedId == (itemId itemObj) then Item {itemId = finishedId, text = (text itemObj), status = Finished} else itemObj) objs
-      newLines = map toDBItem newObjs
-  hPutStr tempHandle $ unlines newLines
-  hClose handle
-  hClose tempHandle
-  removeFile filepath
-  renameFile tempName filepath
+  let handleItem = toDBItem . finishItem finishedId . toObjItem
+      f = unlines . map handleItem . lines
+  modify f
 
 dispatch = [("add", add), ("view", view), ("remove", remove), ("update", update), ("finish", finish)]
 
