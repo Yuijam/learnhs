@@ -83,8 +83,7 @@ updateItem updateId updateText item
 update args = do
   let (updateId : textArray) = args
       text = intercalate " " textArray
-      handleItem = toDBItem . updateItem updateId text . toObjItem
-      f = unlines . map handleItem . lines
+      f = unlines . map (toDBItem . updateItem updateId text . toObjItem) . lines
   modify f
 
 finishItem finishedId item
@@ -92,8 +91,7 @@ finishItem finishedId item
   | otherwise = item
 
 finish [finishedId] = do
-  let handleItem = toDBItem . finishItem finishedId . toObjItem
-      f = unlines . map handleItem . lines
+  let f = unlines . map (toDBItem . finishItem finishedId . toObjItem) . lines
   modify f
 
 dispatch = [("add", add), ("view", view), ("remove", remove), ("update", update), ("finish", finish)]
