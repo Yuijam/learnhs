@@ -46,26 +46,28 @@ modify f = do
   renameFile tempName filepath
 
 add args = do
-  let text = intercalate " " args
-      addItem text newItemId = Item newItemId text Unfinished
-      combineFun h f g p = h $ f p $ g p
-      f = combineFun (++ "\n") getNewContents (toDBItem . addItem text . newId)
-  modify f
+  case args of
+    [] -> putStrLn "you should input something to add, like 'add learn haskell'"
+    args -> do
+      let text = intercalate " " args
+          addItem text newItemId = Item newItemId text Unfinished
+          combineFun h f g p = h $ f p $ g p
+          f = combineFun (++ "\n") getNewContents (toDBItem . addItem text . newId)
+      modify f
 
-toItemsStr = unlines . map (show . toObjItem) . lines
+tryAddSomethingMsgText = "Here is Nothing, try use 'add something'"
+
+toItemsStr contents
+  | null contents = tryAddSomethingMsgText
+  | otherwise = unlines $ map (show . toObjItem) $ lines contents
 
 view _ = do
   isExist <- doesFileExist filepath
-  if isExist
-    then do
+  case isExist of
+    True -> do
       contents <- readFile filepath
-      if null contents
-        then do
-          putStrLn "Here is Nothing"
-        else do
-          putStrLn $ toItemsStr contents
-    else do
-      putStrLn "Here is Nothing"
+      putStrLn $ toItemsStr contents
+    False -> putStrLn tryAddSomethingMsgText
 
 parseItem contentLine =
   let splitedLine = words contentLine
@@ -73,18 +75,24 @@ parseItem contentLine =
       text = intercalate " " $ drop 1 splitedLine
    in Item {itemId = itemId, text = text, status = Unfinished}
 
-remove [removeId] = do
-  modify $ unlines . filter ((removeId /=) . itemId . toObjItem) . lines
+remove args = do
+  case args of
+    [] -> putStrLn "need id to remove"
+    (removeId : _) -> modify $ unlines . filter ((removeId /=) . itemId . toObjItem) . lines
 
 updateItem updateId updateText item
   | itemId item == updateId = Item updateId updateText (status item)
   | otherwise = item
 
+update :: [[Char]] -> IO ()
 update args = do
-  let (updateId : textArray) = args
-      text = intercalate " " textArray
-      f = unlines . map (toDBItem . updateItem updateId text . toObjItem) . lines
-  modify f
+  case args of
+    [] -> putStrLn "need id and text to update"
+    [updateId] -> putStrLn "need text to update"
+    (updateId : textArray) -> do
+      let text = intercalate " " textArray
+          f = unlines . map (toDBItem . updateItem updateId text . toObjItem) . lines
+      modify f
 
 finishItem finishedId item
   | finishedId == itemId item = Item finishedId (text item) Finished
@@ -96,8 +104,13 @@ finish [finishedId] = do
 
 dispatch = [("add", add), ("view", view), ("remove", remove), ("update", update), ("finish", finish)]
 
+commandNotFoundMsg = "command is not exist, try 'add something', 'view', 'update id something', 'finish id'"
+
 main = forever $ do
   input <- getLine
-  let (command : args) = words input
-      (Just action) = lookup command dispatch
-  action args
+  case words input of
+    [] -> putStrLn "you should input something"
+    (command : args) -> do
+      case lookup command dispatch of
+        Just action -> action args
+        Nothing -> putStrLn commandNotFoundMsg
